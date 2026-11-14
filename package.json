@@ -1,0 +1,75 @@
+{
+  "name": "@webship.co/workspace-backdrop-cms",
+  "version": "1.0.7",
+  "description": "Backdrop CMS for Webship Workspace: the builder (`cmd-backdrop-cms-project.sh`) and the Bee tool in every sites folder, the default accounts, the Backdrop CMS step pack wired into the testing setup, and two AI agents in the AI Agents folder.",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/webship/workspace-backdrop-cms.git"
+  },
+  "files": [
+    "dist/src",
+    "agents",
+    "commands",
+    "features",
+    "scripts",
+    "testing",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build",
+    "test": "npm run build && node --test dist/tests/*.test.js",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "workspacePlugin": {
+    "name": "backdrop-cms",
+    "label": "Backdrop CMS",
+    "commands": {
+      "types": [
+        "sites"
+      ],
+      "workspaces": [
+        "dev",
+        "test",
+        "sandboxes",
+        "demos"
+      ],
+      "files": [
+        "commands/cmd-backdrop-cms-project.sh",
+        "commands/cmd-tools-backdrop-cms-cli.sh"
+      ]
+    },
+    "scripts": {
+      "functions": [
+        "scripts/functions/fun-backdrop-cms.sh"
+      ],
+      "args": [
+        "scripts/args/arg-backdrop-cms.sh",
+        "scripts/args/arg-backdrop-cms-cli.sh"
+      ],
+      "machine": [
+        "testing/site.feature"
+      ]
+    },
+    "ai": {
+      "agents": [
+        "agents/backdrop-cms-site-builder.md",
+        "agents/backdrop-cms-tester.md"
+      ]
+    },
+    "features": [
+      "features/backdrop-cms.feature"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@webship.co/workspace-plugin-api": "^1.0.7",
+    "typescript": "^5.9.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
