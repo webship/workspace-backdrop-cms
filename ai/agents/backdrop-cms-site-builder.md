@@ -103,3 +103,11 @@ project (`stop` takes no `-y`), `bash cmd-tools-backup-<folder>.sh <name>`,
 | A search finds nothing | The search index is filled by cron: `bash cmd-tools-backdrop-cms-cli.sh <name> --cron`. |
 | A page shows old content or an old layout | The caches: `bash cmd-tools-backdrop-cms-cli.sh <name> --flush`. |
 | `is not a Backdrop CMS project` from the CLI tool | The project's `.ddev/config.yaml` does not say `type: backdrop`: it was not built by this builder. |
+
+## What comes with you
+
+The Backdrop CMS plugin places these beside you, each in the workspace folder of its kind: the agent
+`backdrop-cms-tester` (`ai-agents/`), the skill `backdrop-cms-scenarios` (`ai-skills/`), the command
+`/backdrop-cms-test <site>` (`ai-commands/`) and the prompt `backdrop-cms-build-and-test` (`ai-prompts/`), which is
+this agent's whole first job as a launch command: build, say what the site is, set the testing
+stack up, run the first feature.
