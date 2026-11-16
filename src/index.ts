@@ -43,7 +43,7 @@ export function assistantContext(): string {
     '`bash cmd-backdrop-cms-project.sh <name> --install --add-users` from a sites folder (dev, test, sandboxes, demos),',
     'in a container like every other project, at https://<name>.ddev.site (log in at /user/login), from the standard profile.',
     '`bash cmd-tools-backdrop-cms-cli.sh <name>` says what the site is; `--run "<command>"` runs Bee (the command line tool of Backdrop CMS) in it,',
-    '`--update` updates the core and the modules, `--flush` flushes the caches, `--cron` runs cron, `--add-users` adds the default accounts (one per role).',
+    '`--update` updates Backdrop CMS itself to the latest release and runs the database updates (not the modules a site added), `--flush` flushes the caches, `--cron` runs cron, `--add-users` adds the default accounts (one per role).',
     '`bash cmd-tools-add-users.sh <name> backdrop` adds the same accounts: the list is named after the DDEV project type.',
     '`bash cmd-tools-testing.sh <name>` sets up webship-js with the Backdrop CMS step pack; `--run` runs the suite.',
     `For Backdrop CMS work, hand over to the agents ${AGENTS.map((a) => `\`${a}\``).join(' and ')}.`,

@@ -9,7 +9,7 @@ parser.add_argument('-r', '--run',
 parser.add_argument('-u', '--update',
                     action='store_true',
                     default=False,
-                    help='Update Backdrop CMS itself and its modules, themes and layouts, run the database updates and flush the caches.')
+                    help='Update Backdrop CMS itself to the latest release, run the database updates and flush the caches. Modules, themes and layouts the site added are not updated.')
 parser.add_argument('-f', '--flush',
                     action='store_true',
                     default=False,

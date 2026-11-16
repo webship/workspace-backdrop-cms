@@ -104,6 +104,42 @@ function backdrop_download() {
     && rm -rf /tmp/backdrop.zip /tmp/backdrop-package" ;
 }
 
+# The number of the latest release of Backdrop CMS: where its releases page sends "latest".
+function backdrop_latest_version() {
+  ddev exec "curl -fsSLI -o /dev/null -w '%{url_effective}' '${BACKDROP_RELEASES}/latest'" 2>/dev/null \
+    | tr -d '\r' | sed -nE 's|^.*/releases/tag/([0-9][0-9.]*)$|\1|p' | head -1 ;
+}
+
+# Update the code of Backdrop CMS itself, in the project the shell is in. Bee has no command for
+# it, so the core/ folder of the latest release replaces the site's, the way Backdrop's own update
+# instructions do it. settings.php, files/ and the site's own modules/, themes/ and layouts/ are not
+# touched, and neither are index.php and .htaccess: the release notes say when one of them changed.
+# The old core/ stays beside the new one until the new one is in place.
+function backdrop_update_core() {
+  local current latest ;
+  current="$(backdrop_version)" ;
+  latest="$(backdrop_latest_version)" ;
+  if [ -z "${latest}" ] ; then
+    echo "The latest release of Backdrop CMS could not be read from ${BACKDROP_RELEASES}/latest." ;
+    return 1 ;
+  fi
+  if [ "${current}" == "${latest}" ] ; then
+    echo "Backdrop CMS ${current} is the latest release." ;
+    return 0 ;
+  fi
+  echo "Updating Backdrop CMS ${current:-(unknown)} to ${latest}." ;
+  ddev exec "rm -rf /tmp/backdrop-package && mkdir -p /tmp/backdrop-package \
+    && curl -fsSL -o /tmp/backdrop.zip '${BACKDROP_RELEASES}/download/${latest}/backdrop.zip' \
+    && unzip -q -o /tmp/backdrop.zip -d /tmp/backdrop-package \
+    && test -f /tmp/backdrop-package/backdrop/core/includes/bootstrap.inc \
+    && rm -rf /var/www/html/core.previous && mv /var/www/html/core /var/www/html/core.previous \
+    && cp -a /tmp/backdrop-package/backdrop/core /var/www/html/core \
+    && rm -rf /var/www/html/core.previous /tmp/backdrop.zip /tmp/backdrop-package" \
+    || { echo "Backdrop CMS ${latest} could not be put in place; the site's core/ is as it was, or in core.previous." ; return 1 ; } ;
+  echo "Backdrop CMS is now $(backdrop_version)." ;
+  echo "index.php, .htaccess and settings.php were not replaced: the notes of ${latest} say whether one of them changed." ;
+}
+
 # Build a Backdrop CMS site from nothing: the container, the code, and with --install the site itself.
 function backdrop_build() {
   trim_project_name ;
@@ -228,8 +264,11 @@ function backdrop_cli_tool() {
   fi
 
   if [ "${UPDATE}" == 'yes' ] ; then
-    backdrop_cli update --yes && backdrop_cli update-db --yes ;
+    # Bee has no command that updates code: the core is updated here, then Bee does the rest.
+    backdrop_update_core || exit 1 ;
+    backdrop_cli update-db --yes || { echo "The database updates did not finish." ; exit 1 ; } ;
     backdrop_cli cache-clear all ;
+    echo "The modules, themes and layouts this site added are not updated: Bee has no command for that." ;
   elif [ "${FLUSH}" == 'yes' ] ; then
     backdrop_cli cache-clear all ;
   elif [ "${CRON}" == 'yes' ] ; then

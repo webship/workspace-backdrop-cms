@@ -141,3 +141,47 @@ test('the first feature names no platform in a step, and no password', () => {
   assert.doesNotMatch(feature, /password "/);
   assert.doesNotMatch(feature, /user create|I register/i, 'a suite never creates an account');
 });
+
+/** The same, with a core/ of a given release in the project and a releases page that names the latest one. */
+function updateRun(installed: string, latest: string) {
+  const p = project('backdrop');
+  fs.mkdirSync(path.join(p.dir, 'core', 'includes'), { recursive: true });
+  fs.writeFileSync(path.join(p.dir, 'core', 'includes', 'bootstrap.inc'), `<?php\ndefine('BACKDROP_VERSION', '${installed}');\n`);
+  const log = path.join(p.root, 'ddev.log');
+  const fake = `ddev() { echo "ddev $*" >> "$DDEV_LOG" ; case "$*" in describe*) echo '"status":"running"' ;; *url_effective*) echo "https://github.com/backdrop/backdrop/releases/tag/${latest}" ;; esac ; return 0 ; }`;
+  const r = spawnSync('bash', ['-c', `source ${FUNCTIONS}\n${fake}\nPROJECT_NAME=site1 ; RUN=_none_ ; UPDATE=yes ; trim_project_name() { :; } ; backdrop_cli_tool`],
+    { encoding: 'utf8', env: { ...process.env, WORKSPACE_ROOT: p.root, doc_name: 'dev', DDEV_LOG: log } });
+  return { r, calls: fs.readFileSync(log, 'utf8').split('\n') };
+}
+
+test('--update never asks Bee for an update command it does not have: the core, then the database updates, then the caches', () => {
+  const { r, calls } = updateRun('1.35.1', '1.35.2');
+  assert.strictEqual(r.status, 0, r.stdout + r.stderr);
+  assert.ok(!calls.some((l) => / update --yes$/.test(l)), 'Bee has no update command');
+  const core = calls.findIndex((l) => /releases\/download\/1\.35\.2\/backdrop\.zip/.test(l));
+  const db = calls.findIndex((l) => / update-db --yes$/.test(l));
+  const cache = calls.findIndex((l) => / cache-clear all$/.test(l));
+  assert.ok(core >= 0 && db > core && cache > db, 'the core of the latest release, then update-db, then the caches');
+  const put = calls[core] + calls.slice(core + 1, db).join('\n');
+  assert.match(put, /mv \/var\/www\/html\/core \/var\/www\/html\/core\.previous/, 'the old core stays until the new one is in place');
+  assert.match(put, /cp -a \/tmp\/backdrop-package\/backdrop\/core \/var\/www\/html\/core/, 'only core/ is replaced');
+  assert.doesNotMatch(put, /settings\.php|\/files|cp -a \/tmp\/backdrop-package\/backdrop\/\. /, 'the settings and the files of the site are not touched');
+  assert.match(r.stdout, /Updating Backdrop CMS 1\.35\.1 to 1\.35\.2\./);
+  assert.match(r.stdout, /index\.php, \.htaccess and settings\.php were not replaced/);
+  assert.match(r.stdout, /modules, themes and layouts this site added are not updated/);
+});
+
+test('--update on the latest release downloads nothing, and still runs the database updates', () => {
+  const { r, calls } = updateRun('1.35.2', '1.35.2');
+  assert.strictEqual(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /Backdrop CMS 1\.35\.2 is the latest release\./);
+  assert.ok(!calls.some((l) => /backdrop\.zip/.test(l)));
+  assert.ok(calls.some((l) => / update-db --yes$/.test(l)));
+});
+
+test('--update stops, with exit 1, when the latest release cannot be read', () => {
+  const { r, calls } = updateRun('1.35.1', 'not-a-version');
+  assert.strictEqual(r.status, 1);
+  assert.match(r.stdout, /could not be read/);
+  assert.ok(!calls.some((l) => /backdrop\.zip| update-db /.test(l)));
+});

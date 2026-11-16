@@ -56,7 +56,7 @@ bash cmd-tools-backdrop-cms-cli.sh mysite --run "download webform"         # a m
 bash cmd-tools-backdrop-cms-cli.sh mysite --run "enable webform"
 bash cmd-tools-backdrop-cms-cli.sh mysite --flush                          # every cache
 bash cmd-tools-backdrop-cms-cli.sh mysite --cron                           # cron once: the search index, the periodic tasks
-bash cmd-tools-backdrop-cms-cli.sh mysite --update                         # the core and the modules, the database updates, the caches
+bash cmd-tools-backdrop-cms-cli.sh mysite --update                         # the core to the latest release, the database updates, the caches (not the modules the site added)
 bash cmd-tools-backdrop-cms-cli.sh mysite --add-users                      # the default accounts
 bash cmd-tools-backdrop-cms-cli.sh mysite --cancel-users                   # and away again
 ```
