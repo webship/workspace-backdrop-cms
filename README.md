@@ -117,7 +117,7 @@ bash cmd-tools-backdrop-cms-cli.sh mysite --run "projects --type=module"
 bash cmd-tools-backdrop-cms-cli.sh mysite --run "help"                       # every command of Bee
 bash cmd-tools-backdrop-cms-cli.sh mysite --flush                            # flush every cache
 bash cmd-tools-backdrop-cms-cli.sh mysite --cron                             # run cron once
-bash cmd-tools-backdrop-cms-cli.sh mysite --update                           # core and modules, database updates, caches
+bash cmd-tools-backdrop-cms-cli.sh mysite --update                           # the core to the latest release, database updates, caches
 bash cmd-tools-backdrop-cms-cli.sh mysite --add-users                        # the default accounts
 bash cmd-tools-backdrop-cms-cli.sh mysite --cancel-users                     # delete them
 ```
