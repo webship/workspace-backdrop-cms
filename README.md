@@ -75,6 +75,7 @@ A workspace that knows none of this (Webship Workspace 1.0.8 and older) ignores 
 | `docs/plugin-items-pattern.md` | How a plugin carries its own commands and AI items, and how to prove it |
 | `src/index.ts` | `register(api)`: what the assistant is told about Backdrop CMS here |
 | `features/backdrop-cms.feature` | Scenarios for the dashboard's own browser suite |
+| `features/backdrop-cms-runtimes.feature` | The row, the test users and two pages of a site built on Docker Compose and on Kubernetes |
 
 The `workspacePlugin` block in `package.json` is the manifest the installer reads.
 
@@ -96,9 +97,10 @@ bash cmd-backdrop-cms-project.sh mysite --install --add-users
 | `--add-users` | With `--install`: add the default accounts, one per role |
 | `--profile <name>` | The install profile: `standard` (the default) or `minimal` |
 | `--php-version <x>` | The PHP of the project container (`8.3`) |
+| `--runtime <name>` | The container runtime to build on: `ddev` (the default), `docker`, `kubernetes`, `podman`, `lando` or `docksal`. See [Runtimes](#runtimes) |
 | `--launch` | Open the site when it is ready |
 
-The site answers at `https://mysite.ddev.site`; log in at `/user/login`. The build runs
+On DDEV the site answers at `https://mysite.ddev.site`; log in at `/user/login`. The build runs
 `ddev config --project-type=backdrop` with the Node.js of the workspace (24), adds Bee to the
 container with its add-on (`backdrop-ops/ddev-backdrop-bee`), downloads the release with Bee and
 installs the site with `bee site-install`. The container tool writes `settings.ddev.php` for the
@@ -108,6 +110,64 @@ name is deleted first.
 
 Bee asks for the current release with a question that has an hourly limit for an address. When it
 is refused, the build fetches the package of the latest release instead and goes on.
+
+
+### Runtimes
+
+```bash
+bash cmd-backdrop-cms-project.sh mysite --install --add-users                        # DDEV, the default
+bash cmd-backdrop-cms-project.sh mysite --install --add-users --runtime docker       # Docker Compose
+bash cmd-backdrop-cms-project.sh mysite --install --add-users --runtime kubernetes   # a Kubernetes cluster
+bash cmd-backdrop-cms-project.sh mysite --install --add-users --runtime lando        # Lando
+bash cmd-backdrop-cms-project.sh mysite --install --add-users --runtime docksal      # Docksal
+```
+
+Without `--runtime` a build takes `container.runtime` of the workspace's `settings.yml`, then DDEV.
+It needs a Webship Workspace with the container runtimes
+([webship/workspace#694](https://github.com/webship/workspace/issues/694)); on an older one the
+builder refuses `--runtime` and builds on DDEV only. Lando and Docksal need a Workspace whose runtime
+layer has them ([webship/workspace#729](https://github.com/webship/workspace/issues/729),
+[#730](https://github.com/webship/workspace/issues/730)), and Lando one whose Landofile gives the
+site an empty `BACKDROP_SETTINGS`
+([webship/workspace#801](https://github.com/webship/workspace/issues/801)): Lando's Apache passes
+that variable to every site, and Backdrop stops on every page when it is not valid JSON.
+
+| | DDEV | Docker Compose | Kubernetes | Podman | Lando | Docksal |
+| --- | --- | --- | --- | --- | --- | --- |
+| Build with `--install --add-users` | Yes | Yes | Yes | Not yet run | Yes | Yes |
+| The pages, and a login as the workspace account and the default accounts | Yes | Yes | Yes | Not yet run | Yes | Yes |
+| `cmd-tools-backdrop-cms-cli.sh` (Bee): status, `--run`, the accounts | Yes | Yes | Yes | Not yet run | Yes | Yes |
+| Test users, added and cancelled | Yes | Yes | Yes | Not yet run | Yes | Yes |
+| Mail caught by Mailpit (the site's password reset) | Yes | Yes | Yes | Not yet run | Yes | Yes |
+| The testing setup and the first feature | Yes | Yes | Yes | Not yet run | Yes | Yes |
+| The step pack's examples, with its seed (151 scenarios) | Yes (*) | Yes (*) | Yes (*) | Not yet run | Yes (*) | Yes (*) |
+| Export and import the database | Yes | Yes | Yes | Not yet run | Yes | Yes |
+| The row in the dashboard, and remove | Yes | Yes | Yes | Not yet run | Yes | Yes |
+
+"Yes" means it was run on a real site of that runtime. Podman runs the same code as Docker Compose
+and was not run yet. (*) With the seed of the step pack's README, run once the test users are there
+(cancelling them takes what they wrote with them): on every runtime, DDEV included, all but the two
+lines its README names for a site of this plugin (the account "admin" of its own test site on the
+administration bar, and the rows of the account listing).
+
+| Runtime | The site's address | What the project carries |
+| --- | --- | --- |
+| DDEV | `https://mysite.ddev.site` | `.ddev/config.yaml` |
+| Docker Compose | `http://127.0.0.1:<port>`, printed by the build | `compose.yaml`, `.webship/runtime/Dockerfile` |
+| Kubernetes | `http://<node address>:<port>`, printed by the build | The same, and `k8s/` (the namespace `ws-mysite`) |
+| Lando | `http://127.0.0.1:<port>`, printed by the build | `.lando.yml` (Lando's proxy stays off) |
+| Docksal | `http://mysite.docksal.site`, on Docksal's own proxy | `.docksal/docksal.env`, `.docksal/docksal.yml` |
+
+What differs on Docker Compose, Kubernetes, Lando and Docksal:
+
+- **Bee** is not DDEV's add-on there: the builder fetches the same branch the add-on fetches (`backdrop-contrib/bee`, `1.x-1.x`) into the project's `.webship/bee` and runs it from there, told the site's root and its address. Bee then says it is inside the Backdrop root (Backdrop's docroot is the project root); the web server refuses `.webship/` (Backdrop's own `.htaccess` rule for hidden folders), and `bee.php` does not run outside the command line.
+- **Where the project is in its container** (`/var/www/html`, `/app` on Lando, `/var/www` on Docksal) is asked of the container, for the code's unpacking, Bee and `--update`.
+- **The database** is the stack's own, `db`/`db`/`db` on the host `db`, which Bee's `site-install` is given on every runtime. PHP's mail goes to each runtime's mail catcher.
+- **HTTPS and a host name** are DDEV's: a runtime's address is plain HTTP.
+
+The same commands work on every runtime: `cmd-tools-backdrop-cms-cli.sh`, `cmd-tools-add-users.sh`,
+`cmd-tools-testing.sh`. The pattern is the Workspace's
+[`core/docs/plugins-on-runtimes.md`](https://github.com/webship/workspace/blob/1.0.x/core/docs/plugins-on-runtimes.md).
 
 ### Work on a site
 
