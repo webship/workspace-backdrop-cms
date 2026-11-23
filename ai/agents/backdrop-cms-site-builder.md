@@ -39,10 +39,12 @@ bash cmd-backdrop-cms-project.sh mysite --install --add-users
 | `--php-version <x>` | The PHP of the project container (`8.3` by default). |
 | `--launch` | Opens the site when it is ready. |
 
-The site answers at `https://<name>.ddev.site`; log in at `/user/login`. The code is at the project
+On DDEV the site answers at `https://<name>.ddev.site`; log in at `/user/login`. The code is at the project
 root. The builder **deletes a project of the same name first**: a build is a clean slate, so never
 point it at a site somebody still needs. The name is a folder, a container project and a host name:
 short, lowercase, letters and digits.
+
+With `--runtime docker`, `podman`, `kubernetes`, `lando` or `docksal` the site is built on that runtime instead, at the address the build prints (`http://127.0.0.1:<port>`, the node's address and a port, or `http://<name>.docksal.site`): never write a `ddev.site` address for such a site. Its mailbox is at the address `rt_mail_url` gives, and the same commands work on it.
 
 Bee is the command line tool of Backdrop CMS. The build adds it to the project's container with
 the add-on `backdrop-ops/ddev-backdrop-bee`, so `ddev bee <command>` works in the project folder.

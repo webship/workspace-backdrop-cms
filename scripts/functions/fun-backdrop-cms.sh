@@ -9,6 +9,14 @@
 # with `ddev exec`), never on the host. The container tool writes settings.ddev.php for the
 # database; the installer is given the same container values (db / db / db) and nothing personal.
 #
+# The runtimes: a site is built on DDEV, or with --runtime on Docker Compose, Podman, Kubernetes, Lando
+# or Docksal. The commands are the same on each: `ddev <verb>` is DDEV itself on a DDEV project, and on
+# another runtime the core's layer (fun-runtime.sh) gives the verb its meaning there. What differs is
+# behind backdrop_runtime: the address (backdrop_url), where the site is in the container (/var/www/html
+# on DDEV; asked of the container elsewhere, backdrop_container_root), and Bee, which DDEV's add-on puts
+# in its web image and which the plugin fetches into the project's .webship/bee on another runtime (the
+# same 1.x branch the add-on fetches).
+#
 # Four names are the ones the core's tools look for, under the DDEV project type `backdrop`:
 #   set_backdrop_users        the default accounts          (cmd-tools-add-users.sh <project> backdrop)
 #   add_backdrop_users        create them with Bee          (the same tool, and --add-users of the builder)
@@ -25,6 +33,8 @@ readonly BACKDROP_BEE_ADDON='backdrop-ops/ddev-backdrop-bee';
 # Bee as the add-on installs it in the container, told where the site is and what its address is.
 # The two variables are the container's own: they are read there, not here.
 readonly BACKDROP_BEE='/usr/local/bin/bee/bee.php --root=/var/www/html/${DDEV_DOCROOT} --uri=${DDEV_PRIMARY_URL}';
+# Bee on another runtime than DDEV: the archive of the branch DDEV's add-on fetches, into the project.
+readonly BACKDROP_BEE_ARCHIVE='https://github.com/backdrop-contrib/bee/archive/1.x-1.x.zip';
 
 # Where the releases of Backdrop CMS are published.
 readonly BACKDROP_RELEASES='https://github.com/backdrop/backdrop/releases';
@@ -44,9 +54,58 @@ function set_backdrop_users() {
   done
 }
 
-# Is this folder a Backdrop CMS project? Its DDEV project type says so.
+# The runtime of the project in this folder, or of a new build (--runtime, else the workspace's
+# setting, else DDEV). A core without the runtime layer has DDEV only.
+function backdrop_runtime() {
+  if declare -f runtime_of > /dev/null ; then runtime_of ; else echo 'ddev' ; fi
+}
+
+# The address of the site in this folder: https://<name>.ddev.site on DDEV, http://127.0.0.1:<port> on
+# Docker Compose, Podman and Lando, the node's address and a port on Kubernetes, http://<name>.docksal.site
+# on Docksal. Asked after `ddev config`.
+function backdrop_url() {
+  if declare -f rt_url > /dev/null ; then rt_url ; else echo "https://${PROJECT_NAME}.ddev.site" ; fi
+}
+
+# Where the project is in its container: /var/www/html on DDEV; on another runtime the container is
+# asked (/var/www/html on Docker Compose, Podman and Kubernetes, /app on Lando, /var/www on Docksal).
+# Asked once per call of a tool, from the project folder.
+function backdrop_container_root() {
+  if [ "$(backdrop_runtime)" == 'ddev' ] ; then
+    echo '/var/www/html' ;
+    return 0 ;
+  fi
+  [ -n "${BACKDROP_CONTAINER_ROOT:-}" ] || BACKDROP_CONTAINER_ROOT="$(ddev exec pwd 2>/dev/null | tr -d '\r' | tail -1)" ;
+  echo "${BACKDROP_CONTAINER_ROOT:-/var/www/html}" ;
+}
+
+# Bee, as the command line runs it in the container of the project the shell is in: the add-on's on
+# DDEV; the project's own .webship/bee on another runtime, told the site's root and its address.
+function backdrop_bee() {
+  if [ "$(backdrop_runtime)" == 'ddev' ] ; then
+    printf '%s' "${BACKDROP_BEE}" ;
+    return 0 ;
+  fi
+  local root ; root="$(backdrop_container_root)" ;
+  printf 'php %s/.webship/bee/bee.php --root=%s --uri=%s' "${root}" "${root}" "$(backdrop_url)" ;
+}
+
+# Bee on another runtime than DDEV, where no add-on brings it: the archive of the branch DDEV's add-on
+# fetches, unpacked into the project's .webship/bee (the folder the runtime's files are in).
+function backdrop_bee_install() {
+  ddev exec "rm -rf /tmp/bee-package && mkdir -p /tmp/bee-package && curl -fsSL -o /tmp/bee.zip '${BACKDROP_BEE_ARCHIVE}' \
+    && unzip -q -o /tmp/bee.zip -d /tmp/bee-package && mkdir -p .webship && rm -rf .webship/bee \
+    && mv /tmp/bee-package/bee-1.x-1.x .webship/bee && rm -rf /tmp/bee.zip /tmp/bee-package && test -f .webship/bee/bee.php" ;
+}
+
+# Is this folder a Backdrop CMS project? Its project type says so: on DDEV in .ddev/config.yaml, on
+# another runtime in the x-webship block, both read by the core's rt_is_platform.
 function backdrop_is_project() {
   local project_path="$1";
+  if declare -f rt_is_platform > /dev/null ; then
+    rt_is_platform "${project_path}" backdrop ;
+    return $? ;
+  fi
   grep -qE '^type:[[:space:]]*"?backdrop"?[[:space:]]*$' "${project_path}/.ddev/config.yaml" 2>/dev/null ;
 }
 
@@ -63,7 +122,7 @@ function backdrop_enter_project() {
     return 1 ;
   fi
   if ! backdrop_is_project "${project_path}" ; then
-    echo "${doc_name}/${PROJECT_NAME} is not a Backdrop CMS project (its .ddev/config.yaml does not say type: backdrop)." ;
+    echo "${doc_name}/${PROJECT_NAME} is not a Backdrop CMS project (its project type is not backdrop)." ;
     return 1 ;
   fi
   cd "${project_path}" || return 1 ;
@@ -72,7 +131,8 @@ function backdrop_enter_project() {
 # Run Bee in the container of the project the shell is in. Every argument is quoted for the
 # container's shell, so a site name of two words arrives as one argument.
 function backdrop_cli() {
-  local line="${BACKDROP_BEE}" arg ;
+  local line arg ;
+  line="$(backdrop_bee)" ;
   for arg in "$@" ; do
     line="${line} $(printf '%q' "${arg}")" ;
   done
@@ -99,8 +159,9 @@ function backdrop_download() {
     package="${BACKDROP_RELEASES}/download/${version}/backdrop.zip" ;
   fi
   # The package holds one folder, backdrop/: its content goes to the project root.
+  local root ; root="$(backdrop_container_root)" ;
   ddev exec "rm -rf /tmp/backdrop-package && mkdir -p /tmp/backdrop-package && curl -fsSL -o /tmp/backdrop.zip '${package}' \
-    && unzip -q -o /tmp/backdrop.zip -d /tmp/backdrop-package && cp -a /tmp/backdrop-package/backdrop/. /var/www/html/ \
+    && unzip -q -o /tmp/backdrop.zip -d /tmp/backdrop-package && cp -a /tmp/backdrop-package/backdrop/. ${root}/ \
     && rm -rf /tmp/backdrop.zip /tmp/backdrop-package" ;
 }
 
@@ -128,13 +189,14 @@ function backdrop_update_core() {
     return 0 ;
   fi
   echo "Updating Backdrop CMS ${current:-(unknown)} to ${latest}." ;
+  local root ; root="$(backdrop_container_root)" ;
   ddev exec "rm -rf /tmp/backdrop-package && mkdir -p /tmp/backdrop-package \
     && curl -fsSL -o /tmp/backdrop.zip '${BACKDROP_RELEASES}/download/${latest}/backdrop.zip' \
     && unzip -q -o /tmp/backdrop.zip -d /tmp/backdrop-package \
     && test -f /tmp/backdrop-package/backdrop/core/includes/bootstrap.inc \
-    && rm -rf /var/www/html/core.previous && mv /var/www/html/core /var/www/html/core.previous \
-    && cp -a /tmp/backdrop-package/backdrop/core /var/www/html/core \
-    && rm -rf /var/www/html/core.previous /tmp/backdrop.zip /tmp/backdrop-package" \
+    && rm -rf ${root}/core.previous && mv ${root}/core ${root}/core.previous \
+    && cp -a /tmp/backdrop-package/backdrop/core ${root}/core \
+    && rm -rf ${root}/core.previous /tmp/backdrop.zip /tmp/backdrop-package" \
     || { echo "Backdrop CMS ${latest} could not be put in place; the site's core/ is as it was, or in core.previous." ; return 1 ; } ;
   echo "Backdrop CMS is now $(backdrop_version)." ;
   echo "index.php, .htaccess and settings.php were not replaced: the notes of ${latest} say whether one of them changed." ;
@@ -143,7 +205,12 @@ function backdrop_update_core() {
 # Build a Backdrop CMS site from nothing: the container, the code, and with --install the site itself.
 function backdrop_build() {
   trim_project_name ;
-  local base_url="https://${PROJECT_NAME}.ddev.site" ;
+  local base_url runtime ;
+  runtime="$(backdrop_runtime)" ;
+  if [ "${RUNTIME:-_none_}" != '_none_' ] && [ "${RUNTIME}" != "${runtime}" ] ; then
+    echo "--runtime ${RUNTIME} needs a Webship Workspace with the container runtimes (webship/workspace#694): update the workspace, or build on DDEV." ;
+    exit 1 ;
+  fi
   local version="${VERSION:-${site_version:-latest}}" ;
   local php_version="${PHP_VERSION:-${site_php_version:-8.3}}" ;
 
@@ -156,8 +223,16 @@ function backdrop_build() {
 
   ddev config --project-type=backdrop --docroot="${distribution_webroot}" --project-name=${PROJECT_NAME} \
     --php-version=${php_version} --nodejs-version=$(ddev_nodejs_version) || exit 1 ;
-  ddev add-on get ${BACKDROP_BEE_ADDON} || { echo "The Bee add-on (${BACKDROP_BEE_ADDON}) could not be added." ; exit 1 ; } ;
+  # The address is the runtime's to say, once the project is configured: never a written ddev.site.
+  base_url="$(backdrop_url)" ;
+  if [ "${runtime}" == 'ddev' ] ; then
+    ddev add-on get ${BACKDROP_BEE_ADDON} || { echo "The Bee add-on (${BACKDROP_BEE_ADDON}) could not be added." ; exit 1 ; } ;
+  fi
   ddev_up start -y || exit 1 ;
+  if [ "${runtime}" != 'ddev' ] ; then
+    # No add-on there: Bee from the branch the add-on fetches, into the project.
+    backdrop_bee_install || { echo "Bee could not be fetched from ${BACKDROP_BEE_ARCHIVE}." ; exit 1 ; } ;
+  fi
 
   backdrop_download "${version}" || { echo "Backdrop CMS ${version} could not be downloaded." ; exit 1 ; } ;
 
@@ -259,7 +334,7 @@ function backdrop_cli_tool() {
 
   if [ ! "${RUN}" == '_none_' ] ; then
     # One string on purpose: --run "projects --type=module" is a command and its arguments.
-    ddev exec "${BACKDROP_BEE} ${RUN}" ;
+    ddev exec "$(backdrop_bee) ${RUN}" ;
     exit $? ;
   fi
 
@@ -280,7 +355,7 @@ function backdrop_cli_tool() {
     set_backdrop_users ;
     cancel_backdrop_users ;
   else
-    echo "${doc_name}/${PROJECT_NAME}: Backdrop CMS $(backdrop_version) at https://${PROJECT_NAME}.ddev.site" ;
+    echo "${doc_name}/${PROJECT_NAME}: Backdrop CMS $(backdrop_version) at $(backdrop_url)" ;
     if backdrop_is_installed "$(pwd)" ; then
       echo "" ; backdrop_cli status ;
       echo "" ; echo "Accounts:" ; backdrop_cli users ;
