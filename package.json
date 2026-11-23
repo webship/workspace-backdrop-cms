@@ -83,8 +83,10 @@
       ]
     },
     "features": [
-      "features/backdrop-cms.feature"
-    ]
+      "features/backdrop-cms.feature",
+      "features/backdrop-cms-runtimes.feature"
+    ],
+    "featuresSite": "cmd-backdrop-cms-project.sh ci-backdrop-cms --install --add-users --runtime docker"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

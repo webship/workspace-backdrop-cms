@@ -41,7 +41,7 @@ export function assistantContext(): string {
   return [
     'Backdrop CMS (a plugin, @webship.co/workspace-backdrop-cms): a Backdrop CMS site is built with',
     '`bash cmd-backdrop-cms-project.sh <name> --install --add-users` from a sites folder (dev, test, sandboxes, demos),',
-    'in a container like every other project, at https://<name>.ddev.site (log in at /user/login), from the standard profile.',
+    'in a container like every other project: on DDEV by default, at https://<name>.ddev.site, or with `--runtime docker|podman|kubernetes|lando|docksal` on that runtime, at the address the build prints, (log in at /user/login), from the standard profile.',
     '`bash cmd-tools-backdrop-cms-cli.sh <name>` says what the site is; `--run "<command>"` runs Bee (the command line tool of Backdrop CMS) in it,',
     '`--update` updates Backdrop CMS itself to the latest release and runs the database updates (not the modules a site added), `--flush` flushes the caches, `--cron` runs cron, `--add-users` adds the default accounts (one per role).',
     '`bash cmd-tools-add-users.sh <name> backdrop` adds the same accounts: the list is named after the DDEV project type.',

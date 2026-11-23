@@ -5,7 +5,8 @@
 # Installed by the Backdrop CMS plugin (plugins.sh --install backdrop-cms); __WORKSPACE__ is the workspace it was installed into.
 #
 # Build a Backdrop CMS site in a container: the current stable release, or the one --version
-# names, at https://<name>.ddev.site. With --install the site is installed from the standard
+# names, on DDEV (the default) at https://<name>.ddev.site, or
+# with --runtime docker, podman, kubernetes, lando or docksal at the address the build prints. With --install the site is installed from the standard
 # profile with the workspace account as its administrator; with --add-users it also gets the
 # default accounts, one per role.
 
